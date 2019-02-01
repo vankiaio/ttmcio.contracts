@@ -90,11 +90,12 @@ void token::issuelock( name to, asset quantity, string memo, asset lockquantity,
     if( to != st.issuer ) {
       SEND_INLINE_ACTION( *this, transfer, { {st.issuer, "active"_n} },
                           { st.issuer, to, quantity, memo }
+      SEND_INLINE_ACTION( *this, lock, { {st.issuer, "active"_n} },
+                          { to, lockquantity, unlock_delay_sec }
+      SEND_INLINE_ACTION( *this, unlock, { {st.issuer, "active"_n} },
+                          { to, lockquantity }
       );
     }
-
-   lock( to, lockquantity, unlock_delay_sec );
-   unlock( to, lockquantity );
 }
 
 void token::retire( asset quantity, string memo )
