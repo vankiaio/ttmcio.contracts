@@ -216,9 +216,9 @@ void token::unlock( name owner, asset quantity )
    eosio_assert( quantity.amount <= target->balance.amount, "quantity to unlock is larger than current balance" );
 
    eosio::transaction out;
-   out.actions.emplace_back( permission_level{st.issuer, "active"_n},
+   out.actions.emplace_back( permission_level{owner, "active"_n},
                              _self, "dounlock"_n,
-                             std::make_tuple(st.issuer, quantity)
+                             std::make_tuple(owner, quantity)
    );
    out.delay_sec = target->unlock_delay_sec;
    locked_acnts.modify( target, same_payer, [&]( auto& a ) {
