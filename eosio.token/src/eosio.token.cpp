@@ -199,7 +199,7 @@ void token::unlock( name owner, asset quantity )
    auto sym = quantity.symbol.code();
    stats statstable( _self, sym.raw() );
    const auto& st = statstable.get( sym.raw() );
-   
+
    require_auth( st.issuer );
 
    eosio_assert( quantity.is_valid(), "invalid quantity" );
@@ -301,4 +301,4 @@ void token::close( name owner, const symbol& symbol )
 
 } /// namespace eosio
 
-EOSIO_DISPATCH( eosio::token, (create)(issue)(transfer)(open)(close)(retire)(lock)(unlock)(dounlock) )
+EOSIO_DISPATCH( eosio::token, (create)(issue)(issuelock)(transfer)(open)(close)(retire)(lock)(unlock)(dounlock) )
