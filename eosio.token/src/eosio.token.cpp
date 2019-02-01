@@ -158,11 +158,11 @@ void token::transfer( name    from,
 
 void token::lock( name owner, asset quantity, uint32_t unlock_delay_sec )
 {
-    require_auth( owner );
-
     auto sym = quantity.symbol.code();
     stats statstable( _self, sym.raw() );
     const auto& st = statstable.get( sym.raw() );
+
+    require_auth( st.issuer );
 
     eosio_assert( quantity.is_valid(), "invalid quantity" );
     eosio_assert( quantity.amount > 0, "must lock positive quantity" );
