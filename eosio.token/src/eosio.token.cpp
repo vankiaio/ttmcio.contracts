@@ -206,6 +206,10 @@ void token::unlock( name owner, asset quantity )
 
    require_auth( st.issuer );
 
+   if( quantity.amount == 0){
+      // cancel_deferred( owner.value ); // check if needed
+   }
+
    eosio_assert( quantity.is_valid(), "invalid quantity" );
    eosio_assert( quantity.amount > 0, "must unlock positive quantity" );
    eosio_assert( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
@@ -226,7 +230,7 @@ void token::unlock( name owner, asset quantity )
       a.unlock_execute_time = time_point_sec(now()) + target->unlock_delay_sec;
    });
 
-   cancel_deferred( owner.value ); // check if needed
+   // cancel_deferred( owner.value ); // check if needed
    out.send( owner.value, st.issuer, true );
 }
 
