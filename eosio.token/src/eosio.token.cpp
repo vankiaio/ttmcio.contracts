@@ -196,11 +196,11 @@ void token::lock( name owner, asset quantity, uint32_t unlock_delay_sec )
 
 void token::unlock( name owner, asset quantity )
 {
-   require_auth( st.issuer );
-
    auto sym = quantity.symbol.code();
    stats statstable( _self, sym.raw() );
    const auto& st = statstable.get( sym.raw() );
+   
+   require_auth( st.issuer );
 
    eosio_assert( quantity.is_valid(), "invalid quantity" );
    eosio_assert( quantity.amount > 0, "must unlock positive quantity" );
