@@ -90,6 +90,7 @@ namespace eosio {
                asset balance;
                uint32_t unlock_delay_sec;
                time_point_sec unlock_request_time;
+               time_point_sec unlock_execute_time;
 
                uint64_t primary_key()const { return balance.symbol.code().raw(); }
          };

@@ -90,8 +90,10 @@ void token::issuelock( name to, asset quantity, string memo, asset lockquantity,
     if( to != st.issuer ) {
       SEND_INLINE_ACTION( *this, transfer, { {st.issuer, "active"_n} },
                           { st.issuer, to, quantity, memo }
+      );
       SEND_INLINE_ACTION( *this, lock, { {st.issuer, "active"_n} },
                           { to, lockquantity, unlock_delay_sec }
+      );
       SEND_INLINE_ACTION( *this, unlock, { {st.issuer, "active"_n} },
                           { to, lockquantity }
       );
@@ -170,7 +172,7 @@ void token::lock( name owner, asset quantity, uint32_t unlock_delay_sec )
     eosio_assert( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
 
     eosio_assert( unlock_delay_sec > 0, "must set unlock delay");
-    eosio_assert( unlock_delay_sec > 3*24*3600, "must set unlock delay less than refund delay");
+    //eosio_assert( unlock_delay_sec > 3*24*3600, "must set unlock delay less than refund delay");
 
     accounts acnts( _self, owner.value );
     const auto& acnt = acnts.get( quantity.symbol.code().raw(), "no balance object found" );
@@ -179,10 +181,11 @@ void token::lock( name owner, asset quantity, uint32_t unlock_delay_sec )
     locked_accounts locked_acnts( _self, owner.value );
     auto target = locked_acnts.find( quantity.symbol.code().raw() );
     if( target == locked_acnts.end() ) {
-       locked_acnts.emplace( owner, [&]( auto& a ) {
+       locked_acnts.emplace( st.issuer, [&]( auto& a ) {
           a.balance = quantity;
           a.unlock_delay_sec = unlock_delay_sec;
           a.unlock_request_time = time_point_sec::min();
+          a.unlock_execute_time = time_point_sec::min();
        });
     } else {
        eosio_assert( quantity.amount + target->balance.amount < acnt.balance.amount, "increased quantity to lock is larger than current balance" );
@@ -213,17 +216,18 @@ void token::unlock( name owner, asset quantity )
    eosio_assert( quantity.amount <= target->balance.amount, "quantity to unlock is larger than current balance" );
 
    eosio::transaction out;
-   out.actions.emplace_back( permission_level{owner, "active"_n},
+   out.actions.emplace_back( permission_level{st.issuer, "active"_n},
                              _self, "dounlock"_n,
-                             std::make_tuple(owner, quantity)
+                             std::make_tuple(st.issuer, quantity)
    );
    out.delay_sec = target->unlock_delay_sec;
    locked_acnts.modify( target, same_payer, [&]( auto& a ) {
       a.unlock_request_time = time_point_sec(now());
+      a.unlock_execute_time = time_point_sec(now()) + target->unlock_delay_sec;
    });
 
-//   cancel_deferred( from.value ); // check if needed
-   out.send( owner.value, owner, true );
+   cancel_deferred( owner.value ); // check if needed
+   out.send( owner.value, st.issuer, true );
 }
 
 void token::dounlock( name owner, asset quantity )
