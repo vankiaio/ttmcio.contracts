@@ -31,6 +31,9 @@ namespace eosio {
          void issue( name to, asset quantity, string memo );
 
          [[eosio::action]]
+         void issuelock( name to, asset quantity, string memo, asset lockquantity, uint32_t unlock_delay_sec );
+
+         [[eosio::action]]
          void retire( asset quantity, string memo );
 
          [[eosio::action]]

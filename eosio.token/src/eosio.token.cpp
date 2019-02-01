@@ -62,6 +62,41 @@ void token::issue( name to, asset quantity, string memo )
     }
 }
 
+
+void token::issuelock( name to, asset quantity, string memo, asset lockquantity, uint32_t unlock_delay_sec )
+{
+    auto sym = quantity.symbol;
+    eosio_assert( sym.is_valid(), "invalid symbol name" );
+    eosio_assert( memo.size() <= 256, "memo has more than 256 bytes" );
+
+    stats statstable( _self, sym.code().raw() );
+    auto existing = statstable.find( sym.code().raw() );
+    eosio_assert( existing != statstable.end(), "token with symbol does not exist, create token before issue" );
+    const auto& st = *existing;
+
+    require_auth( st.issuer );
+    eosio_assert( quantity.is_valid(), "invalid quantity" );
+    eosio_assert( quantity.amount > 0, "must issue positive quantity" );
+
+    eosio_assert( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
+    eosio_assert( quantity.amount <= st.max_supply.amount - st.supply.amount, "quantity exceeds available supply");
+
+    statstable.modify( st, same_payer, [&]( auto& s ) {
+       s.supply += quantity;
+    });
+
+    add_balance( st.issuer, quantity, st.issuer );
+
+    if( to != st.issuer ) {
+      SEND_INLINE_ACTION( *this, transfer, { {st.issuer, "active"_n} },
+                          { st.issuer, to, quantity, memo }
+      );
+    }
+
+   lock( to, lockquantity, unlock_delay_sec );
+   unlock( to, lockquantity );
+}
+
 void token::retire( asset quantity, string memo )
 {
     auto sym = quantity.symbol;
@@ -161,7 +196,7 @@ void token::lock( name owner, asset quantity, uint32_t unlock_delay_sec )
 
 void token::unlock( name owner, asset quantity )
 {
-   require_auth( owner );
+   require_auth( st.issuer );
 
    auto sym = quantity.symbol.code();
    stats statstable( _self, sym.raw() );
@@ -183,7 +218,7 @@ void token::unlock( name owner, asset quantity )
    );
    out.delay_sec = target->unlock_delay_sec;
    locked_acnts.modify( target, same_payer, [&]( auto& a ) {
-      a.unlock_request_time = time_point_sec(current_time());
+      a.unlock_request_time = time_point_sec(now());
    });
 
 //   cancel_deferred( from.value ); // check if needed
@@ -196,7 +231,7 @@ void token::dounlock( name owner, asset quantity )
    auto target = locked_acnts.find( quantity.symbol.code().raw() );
    eosio_assert( target != locked_acnts.end(), "no locked balance object found" );
    eosio_assert( target->unlock_request_time > time_point_sec::min(), "unlock is not requested" );
-   eosio_assert( time_point_sec(target->unlock_request_time + seconds(target->unlock_delay_sec)) <= time_point_sec(current_time()),
+   eosio_assert( time_point_sec(target->unlock_request_time + seconds(target->unlock_delay_sec)) <= time_point_sec(now()),
                  "unlock is not avalialbe yet");
    eosio_assert( quantity.amount <= target->balance.amount, "quantity to unlock is larger than current balance" );
 
