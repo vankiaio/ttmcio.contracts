@@ -206,8 +206,9 @@ void token::unlock( name owner, asset quantity )
 
    require_auth( st.issuer );
 
-   if( quantity.amount == 0){
+   if( quantity.amount <= 0){
       cancel_deferred( owner.value ); // check if needed
+      return;
    }
 
    eosio_assert( quantity.is_valid(), "invalid quantity" );
