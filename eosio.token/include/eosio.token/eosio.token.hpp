@@ -95,7 +95,7 @@ namespace eosio {
 
          struct [[eosio::table]] locked_account {
             asset total_balance;
-            vector<frozen_balance> balances;
+            std::vector<frozen_balance> balances;
 
             uint64_t primary_key()const { return total_balance.symbol.code().raw(); }
          };
@@ -106,7 +106,7 @@ namespace eosio {
 
          void sub_balance( name owner, asset value );
          void add_balance( name owner, asset value, name ram_payer );
-         bool sort_by_execute_time (frozen_balance i,frozen_balance j) {
+         static bool sort_by_execute_time (frozen_balance i,frozen_balance j) {
             return (i.unlock_delay_sec < j.unlock_delay_sec);
          }
    };
