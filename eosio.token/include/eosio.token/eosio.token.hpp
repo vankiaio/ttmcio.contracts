@@ -86,13 +86,18 @@ namespace eosio {
             uint64_t primary_key()const { return supply.symbol.code().raw(); }
          };
 
-         struct [[eosio::table]] locked_account {
-               asset balance;
-               uint32_t unlock_delay_sec;
-               time_point_sec unlock_request_time;
-               time_point_sec unlock_execute_time;
+         struct frozen_balance {
+            asset balance;
+            uint32_t unlock_delay_sec;
+            time_point_sec unlock_request_time;
+            time_point_sec unlock_execute_time;
+         };
 
-               uint64_t primary_key()const { return balance.symbol.code().raw(); }
+         struct [[eosio::table]] locked_account {
+            asset total_balance;
+            vector<frozen_balance> balance_list;
+
+            uint64_t primary_key()const { return total_balance.symbol.code().raw(); }
          };
 
          typedef eosio::multi_index< "accounts"_n, account > accounts;
