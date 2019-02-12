@@ -95,7 +95,7 @@ void token::issuelock( name to, asset quantity, string memo, asset lockquantity,
                           { to, lockquantity, unlock_delay_sec }
       );
       SEND_INLINE_ACTION( *this, unlock, { {st.issuer, "active"_n} },
-                          { to, lockquantity }
+                          { to, "TTMC" }
       );
     }
 }
@@ -150,7 +150,7 @@ void token::transfer( name    from,
        // check if sufficient amount is not locked for this transfer
        accounts from_acnts( _self, from.value );
        const auto& from = from_acnts.get( quantity.symbol.code().raw(), "no balance object found" );
-       eosio_assert( from.balance.amount - target->balance.amount >= quantity.amount, "locked balance" );
+       eosio_assert( from.balance.amount - target->total_balance.amount >= quantity.amount, "locked balance" );
     }
 
     auto payer = has_auth( to ) ? to : from;
@@ -182,73 +182,85 @@ void token::lock( name owner, asset quantity, uint32_t unlock_delay_sec )
     auto target = locked_acnts.find( quantity.symbol.code().raw() );
     if( target == locked_acnts.end() ) {
        locked_acnts.emplace( st.issuer, [&]( auto& a ) {
-          a.balance = quantity;
-          a.unlock_delay_sec = unlock_delay_sec;
-          a.unlock_request_time = time_point_sec::min();
-          a.unlock_execute_time = time_point_sec::min();
+          a.total_balance = quantity;
+          a.balances.reserve( 1 );
+          a.balances.push_back( frozen_balance{quantity, unlock_delay_sec, time_point_sec::min(), time_point_sec::min()} );
+         //  a.unlock_delay_sec = unlock_delay_sec;
+         //  a.unlock_request_time = time_point_sec::min();
+         //  a.unlock_execute_time = time_point_sec::min();
        });
     } else {
-       eosio_assert( quantity.amount + target->balance.amount < acnt.balance.amount, "increased quantity to lock is larger than current balance" );
+       eosio_assert( quantity.amount + target->total_balance.amount < acnt.balance.amount, "increased quantity to lock is larger than current balance" );
        locked_acnts.modify( target, same_payer, [&]( auto& a ) {
-          a.balance.amount += quantity.amount;
-          if (a.unlock_delay_sec < unlock_delay_sec)
-             // can only increase unlock delay 
-             a.unlock_delay_sec = unlock_delay_sec;
+          a.total_balance.amount += quantity.amount;
+          a.balances.reserve( a.balances.size() + 1 );
+          a.balances.push_back( frozen_balance{quantity, unlock_delay_sec, time_point_sec::min(), time_point_sec::min()} );
        });
+       std::sort (a.balances.begin(), a.balances.end(), sort_by_execute_time);
     }
 }
 
-void token::unlock( name owner, asset quantity )
+void token::unlock( name owner, symbol_code sym_code )
 {
-   auto sym = quantity.symbol.code();
+   auto sym = sym_code;
    stats statstable( _self, sym.raw() );
    const auto& st = statstable.get( sym.raw() );
 
    require_auth( st.issuer );
 
-   if( quantity.amount <= 0){
-      cancel_deferred( owner.value ); // check if needed
-      return;
-   }
+   // if( quantity.amount <= 0){
+   //    cancel_deferred( owner.value ); // check if needed
+   //    return;
+   // }
 
-   eosio_assert( quantity.is_valid(), "invalid quantity" );
-   eosio_assert( quantity.amount > 0, "must unlock positive quantity" );
-   eosio_assert( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
+   // eosio_assert( quantity.is_valid(), "invalid quantity" );
+   // eosio_assert( quantity.amount > 0, "must unlock positive quantity" );
+   // eosio_assert( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
 
    locked_accounts locked_acnts( _self, owner.value );
-   auto target = locked_acnts.find( quantity.symbol.code().raw() );
+   auto target = locked_acnts.find( sym_code.raw() );
    eosio_assert( target != locked_acnts.end(), "no locked balance object found" );
-   eosio_assert( quantity.amount <= target->balance.amount, "quantity to unlock is larger than current balance" );
+   eosio_assert( 0 < target->total_balance.amount && 0 < target->balances.size(), "no locked balances item found" );
 
    eosio::transaction out;
    out.actions.emplace_back( permission_level{owner, "active"_n},
                              _self, "dounlock"_n,
                              std::make_tuple(owner, quantity)
    );
-   out.delay_sec = target->unlock_delay_sec;
+   out.delay_sec = target->balances.begin().unlock_delay_sec;
    locked_acnts.modify( target, same_payer, [&]( auto& a ) {
-      a.unlock_request_time = time_point_sec(now());
-      a.unlock_execute_time = time_point_sec(now()) + target->unlock_delay_sec;
+      a.balances.begin().unlock_request_time = time_point_sec(now());
+      a.balances.begin().unlock_execute_time = time_point_sec(now()) + target->unlock_delay_sec;
    });
 
    // cancel_deferred( owner.value ); // check if needed
    out.send( owner.value, st.issuer, true );
 }
 
-void token::dounlock( name owner, asset quantity )
+void token::dounlock( name owner, symbol_code sym_code )
 {
    locked_accounts locked_acnts( _self, owner.value );
-   auto target = locked_acnts.find( quantity.symbol.code().raw() );
+   auto target = locked_acnts.find( sym_code.raw() );
    eosio_assert( target != locked_acnts.end(), "no locked balance object found" );
-   eosio_assert( target->unlock_request_time > time_point_sec::min(), "unlock is not requested" );
-   eosio_assert( time_point_sec(target->unlock_request_time + seconds(target->unlock_delay_sec)) <= time_point_sec(now()),
+   eosio_assert( target->balances.begin().unlock_request_time > time_point_sec::min(), "unlock is not requested" );
+   eosio_assert( time_point_sec(target->balances.begin().unlock_request_time + seconds(target->balances.begin().unlock_delay_sec)) <= time_point_sec(now()),
                  "unlock is not avalialbe yet");
-   eosio_assert( quantity.amount <= target->balance.amount, "quantity to unlock is larger than current balance" );
+   eosio_assert( 0 < target->total_balance.amount && 0 < target->balances.size(), "no locked balances item found" );
 
-   if (target->balance.amount > quantity.amount) {
+   if (target->totaol_balance.amount >= target->balances.begin().balance.amount) {
       locked_acnts.modify( target, same_payer, [&]( auto& a ) {
-         a.balance.amount -= quantity.amount;
+         a.totaol_balance.amount -= target->balances.begin().balance.amount;
+         a.balances.erase(a.balances.begin());
       });
+   } else {
+      locked_acnts.erase( target );
+   }
+
+   if(target->balances.size() > 0 && target->total_balance.amount > 0)
+   {
+      SEND_INLINE_ACTION( *this, unlock, { {st.issuer, "active"_n} },
+                     { to, "TTMC" }
+      );
    } else {
       locked_acnts.erase( target );
    }

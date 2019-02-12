@@ -52,10 +52,10 @@ namespace eosio {
          void lock( name owner, asset quantity, uint32_t unlock_delay_sec );
 
          [[eosio::action]]      
-         void unlock( name owner, asset quantity );
+         void unlock( name owner, symbol_code sym_code );
 
          [[eosio::action]]
-         void dounlock( name owner, asset quantity );
+         void dounlock( name owner, symbol_code sym_code );
 
          static asset get_supply( name token_contract_account, symbol_code sym_code )
          {
@@ -95,7 +95,7 @@ namespace eosio {
 
          struct [[eosio::table]] locked_account {
             asset total_balance;
-            vector<frozen_balance> balance_list;
+            vector<frozen_balance> balances;
 
             uint64_t primary_key()const { return total_balance.symbol.code().raw(); }
          };
@@ -106,6 +106,9 @@ namespace eosio {
 
          void sub_balance( name owner, asset value );
          void add_balance( name owner, asset value, name ram_payer );
+         bool sort_by_execute_time (frozen_balance i,frozen_balance j) {
+            return (i.unlock_delay_sec < j.unlock_delay_sec);
+         }
    };
 
 } /// namespace eosio
