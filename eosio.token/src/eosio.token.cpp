@@ -180,6 +180,7 @@ void token::lock( name owner, asset quantity, uint32_t unlock_delay_sec )
 
     locked_accounts locked_acnts( _self, owner.value );
     auto target = locked_acnts.find( quantity.symbol.code().raw() );
+
     if( target == locked_acnts.end() ) {
        locked_acnts.emplace( st.issuer, [&]( auto& a ) {
           a.total_balance = quantity;
@@ -215,26 +216,40 @@ void token::unlock( name owner, symbol_code sym_code )
    // eosio_assert( quantity.is_valid(), "invalid quantity" );
    // eosio_assert( quantity.amount > 0, "must unlock positive quantity" );
    // eosio_assert( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
-
    locked_accounts locked_acnts( _self, owner.value );
    auto target = locked_acnts.find( sym_code.raw() );
    eosio_assert( target != locked_acnts.end(), "no locked balance object found" );
    eosio_assert( 0 < target->total_balance.amount && 0 < target->balances.size(), "no locked balances item found" );
+
+   locked_acnts.modify( target, same_payer, [&]( auto& a ) {
+      for(auto itr = a.balances.begin(); itr != a.balances.end();itr++) {
+         if(itr->unlock_request_time <= time_point_sec::min() + seconds(1)){
+            itr->unlock_request_time = time_point_sec(now());
+         }
+         if(itr->unlock_execute_time <= time_point_sec::min() + seconds(1)){
+            itr->unlock_execute_time = time_point_sec(now()) + itr->unlock_delay_sec;
+         }
+      }
+      if(a.balances.size() > 1) {
+         std::sort (a.balances.begin(), a.balances.end(), sort_by_execute_time);
+      }
+   });
 
    eosio::transaction out;
    out.actions.emplace_back( permission_level{owner, "active"_n},
                              _self, "dounlock"_n,
                              std::make_tuple(owner, symbol_code("TTMC"))
    );
-   out.delay_sec = target->balances.begin()->unlock_delay_sec;
-   locked_acnts.modify( target, same_payer, [&]( auto& a ) {
-      a.balances.begin()->unlock_request_time = time_point_sec(now());
-      a.balances.begin()->unlock_execute_time = time_point_sec(now()) + target->balances.begin()->unlock_delay_sec;
-      std::sort (a.balances.begin(), a.balances.end(), sort_by_execute_time);
-   });
-
-   // cancel_deferred( owner.value ); // check if needed
+   uint32_t ndelay_sec = target->balances.begin()->unlock_execute_time.sec_since_epoch() - time_point_sec(now()).sec_since_epoch() ;
+   if(ndelay_sec <= 0) {
+      out.delay_sec = 1;
+   } else {
+      out.delay_sec = ndelay_sec;
+   }
+   printf("unlock-----out.delay_sec=%d",out.delay_sec);
+   cancel_deferred( owner.value ); // check if needed
    out.send( owner.value, st.issuer, true );
+
 }
 
 void token::dounlock( name owner, symbol_code sym_code )
@@ -242,8 +257,6 @@ void token::dounlock( name owner, symbol_code sym_code )
    auto sym = sym_code;
    stats statstable( _self, sym.raw() );
    const auto& st = statstable.get( sym.raw() );
-
-   require_auth( st.issuer );
 
    locked_accounts locked_acnts( _self, owner.value );
    auto target = locked_acnts.find( sym_code.raw() );
