@@ -107,7 +107,7 @@ namespace eosio {
          void sub_balance( name owner, asset value );
          void add_balance( name owner, asset value, name ram_payer );
          static bool sort_by_execute_time (frozen_balance i,frozen_balance j) {
-            return (i.unlock_delay_sec < j.unlock_delay_sec);
+            return (i.unlock_execute_time < j.unlock_execute_time);
          }
    };
 

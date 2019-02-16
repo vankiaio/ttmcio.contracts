@@ -240,9 +240,9 @@ void token::unlock( name owner, symbol_code sym_code )
                              _self, "dounlock"_n,
                              std::make_tuple(owner, symbol_code("TTMC"))
    );
-   uint32_t ndelay_sec = target->balances.begin()->unlock_execute_time.sec_since_epoch() - time_point_sec(now()).sec_since_epoch() ;
+   int32_t ndelay_sec = target->balances.begin()->unlock_execute_time.sec_since_epoch() - time_point_sec(now()).sec_since_epoch() ;
    if(ndelay_sec <= 0) {
-      out.delay_sec = 1;
+      out.delay_sec = 3;
    } else {
       out.delay_sec = ndelay_sec;
    }
