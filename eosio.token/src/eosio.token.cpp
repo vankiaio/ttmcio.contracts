@@ -271,7 +271,7 @@ void token::dounlock( name owner, symbol_code sym_code )
          a.total_balance.amount -= a.balances.begin()->balance.amount;
          a.balances.erase(a.balances.begin());
       });
-   } 
+   }
 
    if(target->balances.size() > 0 && target->total_balance.amount > 0)
    {
