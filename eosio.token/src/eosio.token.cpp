@@ -266,14 +266,12 @@ void token::dounlock( name owner, symbol_code sym_code )
                  "unlock is not avalialbe yet");
    eosio_assert( 0 < target->total_balance.amount && 0 < target->balances.size(), "no locked balances item found" );
 
-   if (target->total_balance.amount >= target->balances.begin()->balance.amount) {
+   if (target->total_balance.amount && > 0 && target->total_balance.amount >= target->balances.begin()->balance.amount) {
       locked_acnts.modify( target, same_payer, [&]( auto& a ) {
          a.total_balance.amount -= a.balances.begin()->balance.amount;
          a.balances.erase(a.balances.begin());
       });
-   } else {
-      locked_acnts.erase( target );
-   }
+   } 
 
    if(target->balances.size() > 0 && target->total_balance.amount > 0)
    {
