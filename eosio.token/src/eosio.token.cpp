@@ -191,7 +191,7 @@ void token::lock( name owner, asset quantity, uint32_t unlock_delay_sec )
          //  a.unlock_execute_time = time_point_sec::min();
        });
     } else {
-       eosio_assert( quantity.amount + target->total_balance.amount < acnt.balance.amount, "increased quantity to lock is larger than current balance" );
+       eosio_assert( quantity.amount + target->total_balance.amount <= acnt.balance.amount, "increased quantity to lock is larger than current balance" );
        locked_acnts.modify( target, same_payer, [&]( auto& a ) {
           a.total_balance.amount += quantity.amount;
           a.balances.reserve( a.balances.size() + 1 );
@@ -266,12 +266,14 @@ void token::dounlock( name owner, symbol_code sym_code )
                  "unlock is not avalialbe yet");
    eosio_assert( 0 < target->total_balance.amount && 0 < target->balances.size(), "no locked balances item found" );
 
-   if (target->total_balance.amount && > 0 && target->total_balance.amount >= target->balances.begin()->balance.amount) {
-      locked_acnts.modify( target, same_payer, [&]( auto& a ) {
+   locked_acnts.modify( target, same_payer, [&]( auto& a ) {
+      if (a.total_balance.amount >= a.balances.begin()->balance.amount) {
          a.total_balance.amount -= a.balances.begin()->balance.amount;
-         a.balances.erase(a.balances.begin());
-      });
-   }
+      }else {
+         a.total_balance.amount = 0;
+      }
+      a.balances.erase(a.balances.begin());
+   });
 
    if(target->balances.size() > 0 && target->total_balance.amount > 0)
    {
